@@ -18,6 +18,11 @@ const JAW_CLOSE = 0.16;
 const PINCH_START = 0.3;
 const PINCH_RELEASE = 0.42;
 
+const FOG_OPACITY = 0.87;
+const FIELD_SCALE = 4; // one fog cell per 4x4 canvas pixels
+const BREATH_STRENGTH = 0.06;
+const BREATH_SPREAD = 1.8;
+
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 function jawScore(face) {
@@ -35,6 +40,45 @@ function pinchPosition(points, canvas) {
   };
 }
 
+// Smooth random texture in [0, 1]: coarse value noise blended with fine speckle.
+function makeGrain(w, h) {
+  const step = 12;
+  const gw = Math.ceil(w / step) + 2;
+  const gh = Math.ceil(h / step) + 2;
+  const coarse = Float32Array.from({ length: gw * gh }, () => Math.random());
+  const grain = new Float32Array(w * h);
+
+  for (let y = 0; y < h; y++) {
+    const fy = y / step;
+    const iy = Math.floor(fy);
+    const ty = fy - iy;
+    for (let x = 0; x < w; x++) {
+      const fx = x / step;
+      const ix = Math.floor(fx);
+      const tx = fx - ix;
+      const a = coarse[iy * gw + ix];
+      const b = coarse[iy * gw + ix + 1];
+      const c = coarse[(iy + 1) * gw + ix];
+      const d = coarse[(iy + 1) * gw + ix + 1];
+      const smooth = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+      grain[y * w + x] = smooth * 0.75 + Math.random() * 0.25;
+    }
+  }
+  return grain;
+}
+
+// Centre of the open mouth and a breath radius scaled to mouth width, in canvas pixels (mirrored like the video).
+function mouthArea(points, canvas) {
+  const top = points[13];
+  const bottom = points[14];
+  const width = distance(points[61], points[291]) * canvas.width;
+  return {
+    x: (1 - (top.x + bottom.x) / 2) * canvas.width,
+    y: ((top.y + bottom.y) / 2) * canvas.height,
+    radius: Math.max(width * BREATH_SPREAD, 40),
+  };
+}
+
 function cameraErrorMessage(error) {
   if (error.name === 'NotAllowedError') {
     return 'Camera permission was denied. Allow camera access in your browser, then try again.';
@@ -48,39 +92,117 @@ export default function App() {
   const engine = useRef({ session: 0, frame: 0, stream: null, face: null, hand: null });
   const brush = useRef(BRUSH_DEFAULT);
   const previous = useRef(null);
+  const fieldRef = useRef(null);
 
   const [size, setSize] = useState(BRUSH_DEFAULT);
   const [mode, setMode] = useState('idle');
   const [aspect, setAspect] = useState('16 / 10');
   const [error, setError] = useState('');
 
-  function fog(amount = 1) {
+  // Fog lives in a low-resolution float density map (0 = clear, 1 = fully fogged).
+  // Floats avoid the 8-bit rounding that made repeated faint strokes show up as rings,
+  // and the map is drawn scaled up so edges stay soft.
+  function fogField() {
+    const surface = canvas.current;
+    const w = Math.ceil(surface.width / FIELD_SCALE);
+    const h = Math.ceil(surface.height / FIELD_SCALE);
+    let field = fieldRef.current;
+
+    if (!field || field.w !== w || field.h !== h) {
+      const buffer = document.createElement('canvas');
+      buffer.width = w;
+      buffer.height = h;
+      const bufferCtx = buffer.getContext('2d');
+      field = {
+        w,
+        h,
+        density: new Float32Array(w * h),
+        grain: makeGrain(w, h),
+        buffer,
+        bufferCtx,
+        pixels: bufferCtx.createImageData(w, h),
+      };
+      fieldRef.current = field;
+    }
+    return field;
+  }
+
+  function render() {
     const surface = canvas.current;
     if (!surface) return;
 
+    const { w, h, density, grain, buffer, bufferCtx, pixels } = fogField();
+    const [r, g, b] = FOG.split(',').map(Number);
+    const data = pixels.data;
+
+    for (let i = 0; i < w * h; i++) {
+      // Grain gives the mottled look of real condensation; the random term dithers away banding.
+      const alpha = density[i] * FOG_OPACITY * (0.86 + 0.28 * grain[i]) * 255 + Math.random() - 0.5;
+      const o = i * 4;
+      data[o] = r;
+      data[o + 1] = g;
+      data[o + 2] = b;
+      data[o + 3] = alpha < 0 ? 0 : alpha > 255 ? 255 : alpha;
+    }
+
+    bufferCtx.putImageData(pixels, 0, 0);
     const ctx = surface.getContext('2d');
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = `rgba(${FOG}, ${amount * 0.87})`;
-    ctx.fillRect(0, 0, surface.width, surface.height);
+    ctx.globalCompositeOperation = 'copy';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(buffer, 0, 0, surface.width, surface.height);
+  }
+
+  function fog() {
+    if (!canvas.current) return;
+    fogField().density.fill(1);
+    render();
+  }
+
+  // Applies fn(cellIndex, distance in canvas px) to every field cell within radius of (x, y).
+  function eachCell(x, y, radius, fn) {
+    const { w, h } = fogField();
+    const x0 = Math.max(0, Math.floor((x - radius) / FIELD_SCALE));
+    const x1 = Math.min(w - 1, Math.ceil((x + radius) / FIELD_SCALE));
+    const y0 = Math.max(0, Math.floor((y - radius) / FIELD_SCALE));
+    const y1 = Math.min(h - 1, Math.ceil((y + radius) / FIELD_SCALE));
+
+    for (let cy = y0; cy <= y1; cy++) {
+      for (let cx = x0; cx <= x1; cx++) {
+        const d = Math.hypot((cx + 0.5) * FIELD_SCALE - x, (cy + 0.5) * FIELD_SCALE - y);
+        if (d < radius) fn(cy * w + cx, d);
+      }
+    }
+  }
+
+  function fogAt(x, y, radius) {
+    const { density, grain } = fogField();
+    const sigma = radius / 2.2;
+
+    eachCell(x, y, radius, (i, d) => {
+      const falloff = Math.exp(-(d * d) / (2 * sigma * sigma));
+      // Uneven buildup (via grain) so the patch looks like breath, not a stamped disc.
+      const add = BREATH_STRENGTH * falloff * (0.6 + 0.8 * grain[i]);
+      density[i] = Math.min(1, density[i] + add);
+    });
   }
 
   function clearAt(x, y) {
     const surface = canvas.current;
-    const ctx = surface.getContext('2d');
+    const { density } = fogField();
     const radius = (brush.current / 2) * (surface.width / surface.clientWidth);
     const start = previous.current || { x, y };
     const steps = Math.max(1, Math.ceil(Math.hypot(x - start.x, y - start.y) / (radius / 4)));
 
-    ctx.globalCompositeOperation = 'destination-out';
-
-    for (let i = 1; i <= steps; i++) {
-      const px = start.x + ((x - start.x) * i) / steps;
-      const py = start.y + ((y - start.y) * i) / steps;
-      const gradient = ctx.createRadialGradient(px, py, radius * 0.65, px, py, radius);
-      gradient.addColorStop(0, 'rgba(0,0,0,1)');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(px - radius, py - radius, radius * 2, radius * 2);
+    for (let s = 1; s <= steps; s++) {
+      const px = start.x + ((x - start.x) * s) / steps;
+      const py = start.y + ((y - start.y) * s) / steps;
+      eachCell(px, py, radius, (i, d) => {
+        // Fully clear inside 65% of the radius, smooth fade to the edge.
+        const t = Math.min(1, Math.max(0, (radius - d) / (radius * 0.35)));
+        const wipe = t * t * (3 - 2 * t);
+        density[i] *= 1 - wipe;
+      });
     }
 
     previous.current = { x, y };
@@ -183,8 +305,14 @@ export default function App() {
             const faceResult = face.detectForVideo(feed, now);
             const handResult = hand.detectForVideo(feed, now);
 
+            let changed = false;
             mouthOpen = jawScore(faceResult) > (mouthOpen ? JAW_CLOSE : JAW_OPEN);
-            if (mouthOpen) fog(0.035);
+            const facePoints = faceResult.faceLandmarks[0];
+            if (mouthOpen && facePoints) {
+              const mouth = mouthArea(facePoints, canvas.current);
+              fogAt(mouth.x, mouth.y, mouth.radius);
+              changed = true;
+            }
 
             const points = handResult.landmarks[0];
             if (points) {
@@ -192,6 +320,7 @@ export default function App() {
               if (pinched) {
                 const point = pinchPosition(points, canvas.current);
                 clearAt(point.x, point.y);
+                changed = true;
               } else {
                 previous.current = null;
               }
@@ -199,6 +328,8 @@ export default function App() {
               pinched = false;
               previous.current = null;
             }
+
+            if (changed) render();
           }
 
           current.frame = requestAnimationFrame(tick);
