@@ -1,8 +1,405 @@
-/* Only the positioning needed to align the fog with the camera feed. */
-.mirror {
+/* ---------- Shell ---------- */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 500;
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 3vw, 32px) 0;
+}
+
+.brand {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.brand h1 {
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.brand-sub {
+  color: var(--text-3);
+  font-size: 0.8125rem;
+}
+
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------- Theme picker ---------- */
+.theme-picker {
   position: relative;
+}
+
+.theme-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 200px;
+  margin: 0;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  list-style: none;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
-  max-width: 960px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.theme-option:hover,
+.theme-option[aria-checked='true'] {
+  background: var(--surface-2);
+}
+
+.swatches {
+  display: flex;
+}
+
+.swatches span {
+  width: 14px;
+  height: 14px;
+  margin-left: -3px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+}
+
+.status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-success {
+  border-color: transparent;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.status-success .status-dot {
+  animation: pulse 1.6s var(--ease) infinite;
+}
+
+.status-warning {
+  border-color: transparent;
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.status-meta {
+  padding-left: 8px;
+  border-left: 1px solid currentColor;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 3vw, 32px) 48px;
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 48px;
+    padding-top: 24px;
+  }
+
+  .alert,
+  .archive {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- Panels ---------- */
+.panel {
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+}
+
+.panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.25rem;
+  font-weight: 400;
+}
+
+.panel h2 .icon {
+  color: var(--text-3);
+}
+
+.panel-meta {
+  color: var(--text-3);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.count {
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.alert p {
+  flex: 1;
+  color: var(--text);
+}
+
+/* ---------- Buttons & controls ---------- */
+.icon {
+  flex: none;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color 150ms var(--ease),
+    border-color 150ms var(--ease),
+    color 150ms var(--ease);
+}
+
+.btn-icon {
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+}
+
+.btn-sm .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-secondary:not(:disabled):hover {
+  background: var(--surface-2);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+}
+
+.btn-ghost:not(:disabled):hover,
+.btn-ghost[aria-pressed='true'],
+.btn-ghost[aria-expanded='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: var(--danger-soft);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar-end {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.slider {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 12px;
+  max-width: 380px;
+  font-size: 0.875rem;
+}
+
+.slider label {
+  color: var(--text-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.slider input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.slider output {
+  min-width: 4.5ch;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- Viewport (positioning keeps fog aligned with the camera feed) ---------- */
+/* Gilded frame at its natural proportions; the camera window fills its opening. */
+/* The toolbar shares the frame's width so its controls line up with the camera. */
+.frame,
+.viewport .toolbar {
+  width: min(85%, calc(70vh * 878 / 704));
+}
+
+.frame {
+  position: relative;
+  aspect-ratio: 878 / 704;
+}
+
+/* Drawn above the camera so the inner lip overlaps the window's edge. */
+.frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('./assets/frame.png') center / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+.mirror {
+  /* Opening insets measured from frame.png, pulled ~0.5% under the frame lip. */
+  position: absolute;
+  inset: 14.3% 11.2% 14.4% 12.2%;
+  overflow: hidden;
+  background: var(--mirror-bg);
 }
 
 .mirror video,
@@ -11,12 +408,209 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  /* Both crop identically, so the fog stays aligned with the feed. */
+  object-fit: cover;
 }
 
 .mirror video {
   transform: scaleX(-1);
 }
 
+/* Off or loading: hide the frozen feed and fog so the viewport is a solid fill. */
+.mirror:not(.is-live) video,
+.mirror:not(.is-live) canvas {
+  visibility: hidden;
+}
+
 .mirror canvas {
   pointer-events: none;
+}
+
+.mirror-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: var(--mirror-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+/* ---------- Side column ---------- */
+.side {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.kpi {
+  min-width: 0;
+}
+
+.kpi dt {
+  color: var(--text-3);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.kpi dd {
+  margin: 4px 0 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.unit {
+  margin-left: 2px;
+  color: var(--text-3);
+  font-size: 0.6em;
+  font-weight: 400;
+}
+
+.kpi .flag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.kpi .flag-on {
+  color: var(--success);
+}
+
+.meter {
+  height: 4px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--series-3);
+  transform-origin: left;
+  transition: transform 250ms var(--ease);
+}
+
+.protocol h2 {
+  margin-bottom: 12px;
+}
+
+.protocol ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-2);
+  font-size: 0.875rem;
+}
+
+.protocol li::marker {
+  color: var(--text-3);
+}
+
+.protocol strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---------- Archive ---------- */
+.archive ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shot {
+  display: grid;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.archive img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.shot-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px 0;
+  font-size: 0.8125rem;
+}
+
+.shot-id {
+  color: var(--text-3);
+  font-size: 0.75rem;
+}
+
+.archive time {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.shot-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.shot-actions .btn {
+  flex: 1;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .brand-sub {
+    display: none;
+  }
+
+  .toolbar-group .btn:not(.btn-icon) {
+    flex: 1 1 auto;
+  }
 }

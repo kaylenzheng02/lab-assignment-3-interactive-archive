@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { addSnapshot, deleteSnapshot, listSnapshots } from './utils/archive.js';
+import Icon from './components/Icon.jsx';
+import ThemePicker from './components/ThemePicker.jsx';
 import './App.css';
 
 const MODEL_BASE = 'https://storage.googleapis.com/mediapipe-models';
@@ -7,8 +10,9 @@ const VISION_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/
 const FACE_MODEL = `${MODEL_BASE}/face_landmarker/face_landmarker/float16/1/face_landmarker.task`;
 const HAND_MODEL = `${MODEL_BASE}/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`;
 
-const FOG = '191, 207, 201';
+const FOG = '232, 238, 240'; // milky, faintly cool white, like condensation on glass
 const FRAME_GAP_MS = 65;
+// Wipe diameter in on-screen CSS px.
 const BRUSH_MIN = 30;
 const BRUSH_MAX = 200;
 const BRUSH_DEFAULT = 90;
@@ -18,10 +22,23 @@ const JAW_CLOSE = 0.16;
 const PINCH_START = 0.3;
 const PINCH_RELEASE = 0.42;
 
-const FOG_OPACITY = 0.87;
+const FOG_OPACITY = 0.8;
 const FIELD_SCALE = 4; // one fog cell per 4x4 canvas pixels
 const BREATH_STRENGTH = 0.06;
 const BREATH_SPREAD = 1.8;
+
+const CHART_WINDOW_MS = 30000;
+const MAX_SAMPLES = 6000; // ~6 minutes of history
+const FLUSH_MS = 250; // how often recorded samples are pushed to the overview stats
+
+const fixed2 = (v) => v.toFixed(2);
+const percent = (v) => (v * 100).toFixed(0);
+
+const STATUS = {
+  idle: { label: 'Idle', tone: 'neutral' },
+  loading: { label: 'Initialising', tone: 'warning' },
+  live: { label: 'Recording', tone: 'success' },
+};
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -96,8 +113,76 @@ export default function App() {
 
   const [size, setSize] = useState(BRUSH_DEFAULT);
   const [mode, setMode] = useState('idle');
-  const [aspect, setAspect] = useState('16 / 10');
   const [error, setError] = useState('');
+  const [snapshots, setSnapshots] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [samples, setSamples] = useState([]);
+  const telemetry = useRef([]); // every recorded sample this session, oldest first
+  const coverage = useRef(1); // mean fog density, updated on every render()
+  const urls = useRef(new Map()); // snapshot id -> object URL for display/download
+
+  function withUrl(record) {
+    if (!urls.current.has(record.id)) urls.current.set(record.id, URL.createObjectURL(record.blob));
+    return { id: record.id, createdAt: record.createdAt, url: urls.current.get(record.id) };
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    const owned = urls.current;
+    listSnapshots()
+      .then((records) => {
+        if (!cancelled) setSnapshots(records.map(withUrl));
+      })
+      .catch((err) => setError(`Could not open the archive. ${err.message}`));
+
+    return () => {
+      cancelled = true;
+      owned.forEach((url) => URL.revokeObjectURL(url));
+      owned.clear();
+    };
+  }, []);
+
+  // Combines the mirrored camera frame and the fog exactly as they appear on screen.
+  async function takeSnapshot() {
+    const feed = video.current;
+    const fogLayer = canvas.current;
+    if (!feed?.videoWidth) return;
+
+    setSaving(true);
+    try {
+      const shot = document.createElement('canvas');
+      shot.width = feed.videoWidth;
+      shot.height = feed.videoHeight;
+      const ctx = shot.getContext('2d');
+      ctx.translate(shot.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(feed, 0, 0, shot.width, shot.height);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(fogLayer, 0, 0, shot.width, shot.height);
+
+      const blob = await new Promise((resolve, reject) =>
+        shot.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not encode the image.'))), 'image/jpeg', 0.92),
+      );
+      const record = await addSnapshot(blob);
+      setSnapshots((list) => [withUrl(record), ...list]);
+    } catch (err) {
+      setError(`Could not save the snapshot. ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeSnapshot(id) {
+    if (!window.confirm('Delete this snapshot from the archive? This cannot be undone.')) return;
+    try {
+      await deleteSnapshot(id);
+      URL.revokeObjectURL(urls.current.get(id));
+      urls.current.delete(id);
+      setSnapshots((list) => list.filter((shot) => shot.id !== id));
+    } catch (err) {
+      setError(`Could not delete the snapshot. ${err.message}`);
+    }
+  }
 
   // Fog lives in a low-resolution float density map (0 = clear, 1 = fully fogged).
   // Floats avoid the 8-bit rounding that made repeated faint strokes show up as rings,
@@ -134,8 +219,10 @@ export default function App() {
     const { w, h, density, grain, buffer, bufferCtx, pixels } = fogField();
     const [r, g, b] = FOG.split(',').map(Number);
     const data = pixels.data;
+    let total = 0;
 
     for (let i = 0; i < w * h; i++) {
+      total += density[i];
       // Grain gives the mottled look of real condensation; the random term dithers away banding.
       const alpha = density[i] * FOG_OPACITY * (0.86 + 0.28 * grain[i]) * 255 + Math.random() - 0.5;
       const o = i * 4;
@@ -145,6 +232,7 @@ export default function App() {
       data[o + 3] = alpha < 0 ? 0 : alpha > 255 ? 255 : alpha;
     }
 
+    coverage.current = total / (w * h);
     bufferCtx.putImageData(pixels, 0, 0);
     const ctx = surface.getContext('2d');
     ctx.globalCompositeOperation = 'copy';
@@ -190,7 +278,9 @@ export default function App() {
   function clearAt(x, y) {
     const surface = canvas.current;
     const { density } = fogField();
-    const radius = (brush.current / 2) * (surface.width / surface.clientWidth);
+    // The canvas is drawn with object-fit: cover, so the larger axis ratio is the on-screen scale.
+    const scale = Math.max(surface.clientWidth / surface.width, surface.clientHeight / surface.height);
+    const radius = brush.current / 2 / scale;
     const start = previous.current || { x, y };
     const steps = Math.max(1, Math.ceil(Math.hypot(x - start.x, y - start.y) / (radius / 4)));
 
@@ -228,10 +318,22 @@ export default function App() {
     return () => release();
   }, []);
 
+  function flush() {
+    setSamples(telemetry.current.filter((s) => s.t >= telemetry.current.at(-1).t - CHART_WINDOW_MS));
+  }
+
+  useEffect(() => {
+    if (mode !== 'live') return undefined;
+    const timer = setInterval(() => telemetry.current.length && flush(), FLUSH_MS);
+    return () => clearInterval(timer);
+  }, [mode]);
+
   async function start() {
     release();
     setError('');
     setMode('loading');
+    telemetry.current = [];
+    setSamples([]);
 
     const current = engine.current;
     const session = current.session;
@@ -281,16 +383,19 @@ export default function App() {
       current.hand = hand;
 
       const feed = video.current;
-      setAspect(`${feed.videoWidth} / ${feed.videoHeight}`);
       canvas.current.width = feed.videoWidth;
       canvas.current.height = feed.videoHeight;
-      fog();
+      // Resume the previous drawing after a stop; refog only on first start or if the frame size changed.
+      const previousField = fieldRef.current;
+      if (fogField() === previousField) render();
+      else fog();
       setMode('live');
 
       let lastTime = -1;
       let lastFrame = 0;
       let mouthOpen = false;
       let pinched = false;
+      let startedAt = null;
 
       function tick(now) {
         if (session !== current.session) return;
@@ -306,7 +411,8 @@ export default function App() {
             const handResult = hand.detectForVideo(feed, now);
 
             let changed = false;
-            mouthOpen = jawScore(faceResult) > (mouthOpen ? JAW_CLOSE : JAW_OPEN);
+            const jaw = jawScore(faceResult);
+            mouthOpen = jaw > (mouthOpen ? JAW_CLOSE : JAW_OPEN);
             const facePoints = faceResult.faceLandmarks[0];
             if (mouthOpen && facePoints) {
               const mouth = mouthArea(facePoints, canvas.current);
@@ -315,8 +421,9 @@ export default function App() {
             }
 
             const points = handResult.landmarks[0];
+            const ratio = points ? pinchRatio(points) : null;
             if (points) {
-              pinched = pinchRatio(points) < (pinched ? PINCH_RELEASE : PINCH_START);
+              pinched = ratio < (pinched ? PINCH_RELEASE : PINCH_START);
               if (pinched) {
                 const point = pinchPosition(points, canvas.current);
                 clearAt(point.x, point.y);
@@ -330,6 +437,19 @@ export default function App() {
             }
 
             if (changed) render();
+
+            startedAt ??= now;
+            telemetry.current.push({
+              t: now - startedAt,
+              jaw: facePoints ? jaw : null,
+              pinch: ratio,
+              coverage: coverage.current,
+              face: Boolean(facePoints),
+              hand: Boolean(points),
+              mouthOpen,
+              pinched,
+            });
+            if (telemetry.current.length > MAX_SAMPLES) telemetry.current.shift();
           }
 
           current.frame = requestAnimationFrame(tick);
@@ -354,35 +474,217 @@ export default function App() {
   function stop() {
     release();
     setMode('idle');
+    if (telemetry.current.length) flush();
   }
 
+  const status = STATUS[mode];
+  const last = samples.at(-1);
+  const rate = last ? samples.filter((s) => s.t > last.t - 1000).length : 0;
+  const fogLevel = last ? last.coverage : 1; // the mirror starts fully fogged
+  const faceOn = mode === 'live' && last?.face;
+  const handOn = mode === 'live' && last?.hand;
+
   return (
-    <main>
-      <div className="mirror" style={{ aspectRatio: aspect }}>
-        <video ref={video} autoPlay playsInline muted aria-label="Mirrored camera feed" />
-        <canvas ref={canvas} width="1280" height="800" aria-label="Fog overlay" />
-      </div>
-      <p>
-        <button onClick={start} disabled={mode !== 'idle'}>
-          {mode === 'loading' ? 'Loading camera…' : 'Start camera'}
-        </button>{' '}
-        <button onClick={stop} disabled={mode === 'idle'}>Stop camera</button>
-      </p>
-      <label htmlFor="brush">Clearing size: </label>
-      <input
-        id="brush"
-        type="range"
-        min={BRUSH_MIN}
-        max={BRUSH_MAX}
-        value={size}
-        onChange={(event) => {
-          const value = Number(event.target.value);
-          setSize(value);
-          brush.current = value;
-        }}
-      />{' '}
-      <output htmlFor="brush">{size} px</output>
-      {error && <p role="alert">{error}</p>}
-    </main>
+    <>
+      <a className="skip-link" href="#main">Skip to main content</a>
+
+      <header className="topbar">
+        <div className="brand">
+          <h1>Digital Mirror</h1>
+          <p className="brand-sub">Gesture tracking study</p>
+        </div>
+        <div className="topbar-end">
+          <p className={`status status-${status.tone}`} role="status">
+            <span className="status-dot" aria-hidden="true" />
+            {status.label}
+            {mode === 'live' && last && <span className="status-meta">t = {(last.t / 1000).toFixed(1)} s</span>}
+          </p>
+          <ThemePicker />
+        </div>
+      </header>
+
+      <main id="main" className="layout">
+        {error && (
+          <div className="alert" role="alert">
+            <Icon name="alert" />
+            <p>{error}</p>
+            <button className="btn btn-ghost btn-sm" onClick={() => setError('')}>
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        <section className="panel viewport" aria-label="Camera">
+          <div className="frame">
+            <div className={`mirror ${mode === 'live' ? 'is-live' : ''}`}>
+              <video ref={video} autoPlay playsInline muted aria-label="Mirrored camera feed" />
+              <canvas ref={canvas} width="1280" height="800" aria-label="Fog overlay" />
+              {mode !== 'live' && (
+                <div className="mirror-overlay">
+                  <Icon name={mode === 'loading' ? 'activity' : 'cameraOff'} size={28} />
+                  <p>{mode === 'loading' ? 'Loading camera and tracking models…' : 'Camera offline'}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="toolbar">
+            <div className="toolbar-group">
+              <button
+                className="btn btn-secondary btn-icon"
+                onClick={start}
+                disabled={mode !== 'idle'}
+                aria-label={mode === 'loading' ? 'Loading camera' : 'Start camera'}
+                title={mode === 'loading' ? 'Loading camera' : 'Start camera'}
+              >
+                <Icon name="play" />
+              </button>
+              <button
+                className="btn btn-secondary btn-icon"
+                onClick={stop}
+                disabled={mode === 'idle'}
+                aria-label="Stop camera"
+                title="Stop camera"
+              >
+                <Icon name="stop" />
+              </button>
+              <button
+                className="btn btn-primary btn-icon"
+                onClick={takeSnapshot}
+                disabled={mode !== 'live' || saving}
+                aria-label={saving ? 'Saving snapshot' : 'Take snapshot'}
+                title={saving ? 'Saving snapshot' : 'Take snapshot'}
+              >
+                <Icon name="camera" />
+              </button>
+            </div>
+
+            <div className="toolbar-end">
+              <div className="slider">
+                <label htmlFor="brush">Brush size</label>
+                <input
+                  id="brush"
+                  type="range"
+                  min={BRUSH_MIN}
+                  max={BRUSH_MAX}
+                  value={size}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setSize(value);
+                    brush.current = value;
+                  }}
+                />
+                <output htmlFor="brush">{size} px</output>
+              </div>
+              <button
+                className="btn btn-secondary btn-icon"
+                onClick={fog}
+                disabled={mode !== 'live'}
+                aria-label="Reset fog"
+                title="Reset fog"
+              >
+                <Icon name="reset" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <aside className="side" aria-label="Session overview">
+          <dl className="kpis">
+            <div className="kpi">
+              <dt>Fog coverage</dt>
+              <dd>
+                {percent(fogLevel)}
+                <span className="unit">%</span>
+              </dd>
+              <div className="meter" aria-hidden="true">
+                <span style={{ transform: `scaleX(${fogLevel})` }} />
+              </div>
+            </div>
+            <div className="kpi">
+              <dt>Detection rate</dt>
+              <dd>
+                {mode === 'live' ? rate : '—'}
+                <span className="unit">Hz</span>
+              </dd>
+            </div>
+            <div className="kpi">
+              <dt>Face</dt>
+              <dd className={`flag ${faceOn ? 'flag-on' : ''}`}>
+                <Icon name={faceOn ? 'check' : 'minus'} />
+                {mode !== 'live' ? 'Offline' : faceOn ? (last.mouthOpen ? 'Mouth open' : 'Tracked') : 'Not found'}
+              </dd>
+            </div>
+            <div className="kpi">
+              <dt>Hand</dt>
+              <dd className={`flag ${handOn ? 'flag-on' : ''}`}>
+                <Icon name={handOn ? 'check' : 'minus'} />
+                {mode !== 'live' ? 'Offline' : handOn ? (last.pinched ? 'Pinching' : 'Tracked') : 'Not found'}
+              </dd>
+            </div>
+          </dl>
+
+          <section className="panel protocol" aria-labelledby="protocol-heading">
+            <h2 id="protocol-heading">
+              <Icon name="info" /> Steps
+            </h2>
+            <ol>
+              <li>
+                <strong>Start the camera</strong>
+              </li>
+              <li>
+                <strong>Open your mouth</strong>
+              </li>
+              <li>
+                <strong>Pinch thumb and index finger</strong>
+              </li>
+              <li>
+                <strong>Take a snapshot</strong>
+              </li>
+            </ol>
+          </section>
+        </aside>
+
+
+        <section className="panel archive" aria-labelledby="archive-heading">
+          <div className="panel-head">
+            <h2 id="archive-heading">
+              <Icon name="archive" /> Archive <span className="count">{snapshots.length}</span>
+            </h2>
+          </div>
+          {snapshots.length === 0 ? (
+            <div className="empty">
+              <Icon name="camera" size={28} />
+              <p>No snapshots yet. Start the camera and press “Take snapshot”.</p>
+            </div>
+          ) : (
+            <ul>
+              {snapshots.map((shot) => {
+                const taken = new Date(shot.createdAt);
+                return (
+                  <li key={shot.id} className="shot">
+                    <img src={shot.url} alt={`Mirror snapshot from ${taken.toLocaleString()}`} />
+                    <div className="shot-meta">
+                      <span className="shot-id">#{String(shot.id).padStart(3, '0')}</span>
+                      <time dateTime={taken.toISOString()}>{taken.toLocaleString()}</time>
+                    </div>
+                    <div className="shot-actions">
+                      <a className="btn btn-secondary btn-sm" href={shot.url} download={`mirror-${shot.createdAt}.jpg`}>
+                        <Icon name="download" />
+                        Download
+                      </a>
+                      <button className="btn btn-danger btn-sm" onClick={() => removeSnapshot(shot.id)}>
+                        <Icon name="trash" />
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </main>
+    </>
   );
 }

@@ -1,1 +1,253 @@
-/* Browser default styling. */
+/* Design tokens and base styles. Components reference these roles, never raw hex. */
+:root {
+  color-scheme: light;
+  --font-sans: 'Google Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Palette: #a4243b crimson · #d8c99b sand · #d8973c ochre · #bd632f rust · #273e47 slate */
+  --bg: #d8c99b;
+  --surface: #e9e1c2;
+  --surface-2: #dfd3ae;
+  --border: #c4b588;
+  --border-strong: #a89a6e;
+  --text: #273e47;
+  --text-2: #2f4852;
+  --text-3: #3e545c;
+
+  --primary: #273e47;
+  --primary-hover: #1b2c33;
+  --on-primary: #e9e1c2;
+  --focus: #a4243b;
+  --danger: #a4243b;
+  --danger-soft: #ecd3c6;
+  --success: #2e6a4a;
+  --success-soft: #dfe2c2;
+  --warning: #9a4f22;
+  --warning-soft: #f0dcc0;
+
+  /* Chart roles: each chart plots one series, so slots only need to read well on the surface. */
+  --series-1: #a4243b;
+  --series-2: #bd632f;
+  --series-3: #273e47;
+  --chart-grid: #d4c9a4;
+  --chart-band: rgba(39, 62, 71, 0.08);
+  --mirror-bg: #273e47;
+  --mirror-text: #d8c99b;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Alternate themes, chosen with the theme picker (data-theme on <html>). Sand is the :root default. */
+[data-theme='plum'] {
+  --bg: #bfc3ba;
+  --surface: #d9dbd6;
+  --surface-2: #ccd0c8;
+  --border: #a9aca9;
+  --border-strong: #8e918e;
+  --text: #2f2235;
+  --text-2: #3f3244;
+  --text-3: #60495a;
+  --primary: #60495a;
+  --primary-hover: #3f3244;
+  --on-primary: #ffffff;
+  --focus: #3f3244;
+  --danger: #9b2c2c;
+  --danger-soft: #e6d3d0;
+  --success: #2f6b4f;
+  --success-soft: #cfdccf;
+  --warning: #8a4a12;
+  --warning-soft: #e3d7c4;
+  --series-1: #60495a;
+  --series-2: #2f2235;
+  --series-3: #6e716e;
+  --chart-grid: #c5c8c2;
+  --chart-band: rgba(47, 34, 53, 0.08);
+  --mirror-bg: #2f2235;
+  --mirror-text: #bfc3ba;
+}
+
+[data-theme='lagoon'] {
+  --bg: #faf3e3;
+  --surface: #fffaf0;
+  --surface-2: #f3e9d2;
+  --border: #e2d3b0;
+  --border-strong: #c9b78e;
+  --text: #264653;
+  --text-2: #2f5563;
+  --text-3: #3e6371;
+  --primary: #264653;
+  --primary-hover: #1b343e;
+  --on-primary: #ffffff;
+  --focus: #264653;
+  --danger: #b23a1f;
+  --danger-soft: #fbe1d8;
+  --success: #1f7a6f;
+  --success-soft: #d8efe9;
+  --warning: #9a5a12;
+  --warning-soft: #fbe8cc;
+  --series-1: #e76f51;
+  --series-2: #2a9d8f;
+  --series-3: #264653;
+  --chart-grid: #ece3cc;
+  --chart-band: rgba(38, 70, 83, 0.07);
+  --mirror-bg: #264653;
+  --mirror-text: #e9c46a;
+}
+
+[data-theme='ocean'] {
+  --bg: #e8f4fa;
+  --surface: #ffffff;
+  --surface-2: #d9edf7;
+  --border: #b9dcec;
+  --border-strong: #8ecae6;
+  --text: #023047;
+  --text-2: #0b3d57;
+  --text-3: #2a5a72;
+  --primary: #023047;
+  --primary-hover: #011f2f;
+  --on-primary: #ffffff;
+  --focus: #023047;
+  --danger: #b3261e;
+  --danger-soft: #fbe0dc;
+  --success: #1d6b45;
+  --success-soft: #d9f0e3;
+  --warning: #9a5200;
+  --warning-soft: #fff0cc;
+  --series-1: #1a86a1;
+  --series-2: #c96800;
+  --series-3: #023047;
+  --chart-grid: #e1eef5;
+  --chart-band: rgba(2, 48, 71, 0.07);
+  --mirror-bg: #023047;
+  --mirror-text: #8ecae6;
+}
+
+[data-theme='olive'] {
+  --bg: #fefae0;
+  --surface: #fffdf0;
+  --surface-2: #f4eecb;
+  --border: #e3d9b0;
+  --border-strong: #c9bd8e;
+  --text: #283618;
+  --text-2: #3a4a22;
+  --text-3: #4d5a2c;
+  --primary: #606c38;
+  --primary-hover: #4a5429;
+  --on-primary: #fefae0;
+  --focus: #283618;
+  --danger: #a3341f;
+  --danger-soft: #f8ddd2;
+  --success: #3f6a2a;
+  --success-soft: #e4ecd0;
+  --warning: #8f4f17;
+  --warning-soft: #f8e6c8;
+  --series-1: #bc6c25;
+  --series-2: #606c38;
+  --series-3: #283618;
+  --chart-grid: #ede6c4;
+  --chart-band: rgba(40, 54, 24, 0.07);
+  --mirror-bg: #283618;
+  --mirror-text: #fefae0;
+}
+
+[data-theme='ember'] {
+  --bg: #eae2b7;
+  --surface: #f5f0d8;
+  --surface-2: #e3d9a6;
+  --border: #d4c890;
+  --border-strong: #b9ac70;
+  --text: #003049;
+  --text-2: #0d3d55;
+  --text-3: #2b5468;
+  --primary: #003049;
+  --primary-hover: #002236;
+  --on-primary: #ffffff;
+  --focus: #d62828;
+  --danger: #b51f1f;
+  --danger-soft: #f6d3c8;
+  --success: #2e6a4a;
+  --success-soft: #dde4bf;
+  --warning: #9a4d00;
+  --warning-soft: #f8e0b0;
+  --series-1: #d62828;
+  --series-2: #c96400;
+  --series-3: #003049;
+  --chart-grid: #e6dcb0;
+  --chart-band: rgba(0, 48, 73, 0.07);
+  --mirror-bg: #003049;
+  --mirror-text: #fcbf49;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  text-transform: lowercase;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+img {
+  max-width: 100%;
+}
+
+button,
+input {
+  font: inherit;
+  text-transform: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
