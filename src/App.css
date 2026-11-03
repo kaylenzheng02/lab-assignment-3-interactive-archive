@@ -57,7 +57,7 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 30;
+  z-index: 50;
   display: grid;
   gap: 2px;
   min-width: 200px;
@@ -164,8 +164,7 @@
     padding-top: 24px;
   }
 
-  .alert,
-  .archive {
+  .alert {
     grid-column: 1 / -1;
   }
 }
@@ -542,56 +541,69 @@
 }
 
 /* ---------- Archive ---------- */
-.archive ul {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
+/* Snapshot ducks sit over the page at random spots that keep clear of the controls (see placeDucks). */
+.pond {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 40;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.shot {
-  display: grid;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+.duck {
+  position: absolute;
+  width: 140px;
 }
 
-.archive img {
+.duck:hover,
+.duck:focus-within {
+  z-index: 1;
+}
+
+.duck img {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 120 / 100;
   object-fit: cover;
   background: var(--surface-2);
+  /* Crop each thumbnail to a rubber duck silhouette. */
+  mask: url('./assets/duck.svg') center / contain no-repeat;
 }
 
-.shot-meta {
+/* Number and actions appear only on hover or keyboard focus. */
+.duck-tools {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 10px 12px 0;
-  font-size: 0.8125rem;
-}
-
-.shot-id {
-  color: var(--text-3);
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
   font-size: 0.75rem;
-}
-
-.archive time {
-  color: var(--text-2);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  translate: -50% 0;
+  transition: opacity 150ms var(--ease);
 }
 
-.shot-actions {
-  display: flex;
-  gap: 8px;
-  padding: 10px 12px 12px;
+.duck:hover .duck-tools,
+.duck:focus-within .duck-tools {
+  opacity: 1;
 }
 
-.shot-actions .btn {
-  flex: 1;
+.duck-id {
+  margin-right: 4px;
+  color: var(--text-2);
+}
+
+.btn-icon-sm {
+  width: 32px;
+  min-height: 32px;
 }
 
 .empty {

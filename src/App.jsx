@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { addSnapshot, deleteSnapshot, listSnapshots } from './utils/archive.js';
 import Icon from './components/Icon.jsx';
@@ -41,6 +41,58 @@ const STATUS = {
 };
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+const DUCK_W = 140;
+const DUCK_H = 140; // image (140 x 117) plus room for the hover tools below it
+const DUCK_GAP = 12;
+// Areas ducks must never cover: header status/theme, the camera, and its controls.
+const DUCK_KEEP_CLEAR = '.topbar-end, .frame, .viewport .toolbar';
+
+// Deterministic pseudo-random number in [0, 1) for a snapshot id, so ducks stay put across reloads.
+function seeded(id, n) {
+  const x = Math.sin(id * 12.9898 + n * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+const overlaps = (a, b) =>
+  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+// Picks a document-space spot for each duck that avoids the keep-clear areas and, where possible, other ducks.
+function placeDucks(ids) {
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  const blocked = [...document.querySelectorAll(DUCK_KEEP_CLEAR)].map((el) => {
+    const r = el.getBoundingClientRect();
+    return {
+      left: r.left + scrollX - DUCK_GAP,
+      top: r.top + scrollY - DUCK_GAP,
+      right: r.right + scrollX + DUCK_GAP,
+      bottom: r.bottom + scrollY + DUCK_GAP,
+    };
+  });
+  const width = document.documentElement.clientWidth - DUCK_W;
+  const height = document.documentElement.scrollHeight - DUCK_H;
+  const placed = [];
+  const spots = {};
+
+  for (const id of ids) {
+    let fallback = null;
+    let spot = null;
+    for (let attempt = 0; attempt < 60 && !spot; attempt++) {
+      const left = seeded(id, attempt * 2 + 1) * width;
+      const top = seeded(id, attempt * 2 + 2) * height;
+      const box = { left, top, right: left + DUCK_W, bottom: top + DUCK_H };
+      if (blocked.some((b) => overlaps(box, b))) continue;
+      fallback ??= box;
+      if (!placed.some((b) => overlaps(box, b))) spot = box;
+    }
+    spot ??= fallback;
+    if (!spot) continue; // no clear space at all; leave this duck hidden rather than cover controls
+    placed.push(spot);
+    spots[id] = { left: spot.left, top: spot.top, rotate: `${((seeded(id, 0) - 0.5) * 30).toFixed(1)}deg` };
+  }
+  return spots;
+}
 
 function jawScore(face) {
   return face.faceBlendshapes[0]?.categories.find((shape) => shape.categoryName === 'jawOpen')?.score || 0;
@@ -115,6 +167,7 @@ export default function App() {
   const [mode, setMode] = useState('idle');
   const [error, setError] = useState('');
   const [snapshots, setSnapshots] = useState([]);
+  const [duckSpots, setDuckSpots] = useState({});
   const [saving, setSaving] = useState(false);
   const [samples, setSamples] = useState([]);
   const telemetry = useRef([]); // every recorded sample this session, oldest first
@@ -317,6 +370,16 @@ export default function App() {
     fog();
     return () => release();
   }, []);
+
+  const snapshotIds = snapshots.map((shot) => shot.id).join(',');
+  useLayoutEffect(() => {
+    const ids = snapshotIds ? snapshotIds.split(',').map(Number).sort((a, b) => a - b) : [];
+    const update = () => setDuckSpots(placeDucks(ids));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(document.body);
+    return () => observer.disconnect();
+  }, [snapshotIds]);
 
   function flush() {
     setSamples(telemetry.current.filter((s) => s.t >= telemetry.current.at(-1).t - CHART_WINDOW_MS));
@@ -643,48 +706,57 @@ export default function App() {
               </li>
             </ol>
           </section>
+          <section className="panel archive" aria-labelledby="archive-heading">
+            <div className="panel-head">
+              <h2 id="archive-heading">
+                <Icon name="archive" /> Archive <span className="count">{snapshots.length}</span>
+              </h2>
+            </div>
+            {snapshots.length === 0 && (
+              <div className="empty">
+                <Icon name="camera" size={28} />
+                <p>No snapshots yet. Start the camera and press “Take snapshot”.</p>
+              </div>
+            )}
+          </section>
         </aside>
 
 
-        <section className="panel archive" aria-labelledby="archive-heading">
-          <div className="panel-head">
-            <h2 id="archive-heading">
-              <Icon name="archive" /> Archive <span className="count">{snapshots.length}</span>
-            </h2>
-          </div>
-          {snapshots.length === 0 ? (
-            <div className="empty">
-              <Icon name="camera" size={28} />
-              <p>No snapshots yet. Start the camera and press “Take snapshot”.</p>
-            </div>
-          ) : (
-            <ul>
-              {snapshots.map((shot) => {
-                const taken = new Date(shot.createdAt);
-                return (
-                  <li key={shot.id} className="shot">
-                    <img src={shot.url} alt={`Mirror snapshot from ${taken.toLocaleString()}`} />
-                    <div className="shot-meta">
-                      <span className="shot-id">#{String(shot.id).padStart(3, '0')}</span>
-                      <time dateTime={taken.toISOString()}>{taken.toLocaleString()}</time>
-                    </div>
-                    <div className="shot-actions">
-                      <a className="btn btn-secondary btn-sm" href={shot.url} download={`mirror-${shot.createdAt}.jpg`}>
-                        <Icon name="download" />
-                        Download
-                      </a>
-                      <button className="btn btn-danger btn-sm" onClick={() => removeSnapshot(shot.id)}>
-                        <Icon name="trash" />
-                        Delete
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
       </main>
+
+      <ul className="pond" aria-label="Snapshots">
+        {snapshots.map((shot) => {
+          const spot = duckSpots[shot.id];
+          if (!spot) return null;
+          const taken = new Date(shot.createdAt);
+          const number = `#${String(shot.id).padStart(3, '0')}`;
+          return (
+            <li key={shot.id} className="duck" style={spot}>
+              <img src={shot.url} alt={`Mirror snapshot ${number} from ${taken.toLocaleString()}`} />
+              <div className="duck-tools">
+                <span className="duck-id">{number}</span>
+                <a
+                  className="btn btn-secondary btn-icon btn-icon-sm"
+                  href={shot.url}
+                  download={`mirror-${shot.createdAt}.jpg`}
+                  aria-label={`Download snapshot ${number}`}
+                  title="Download"
+                >
+                  <Icon name="download" />
+                </a>
+                <button
+                  className="btn btn-danger btn-icon btn-icon-sm"
+                  onClick={() => removeSnapshot(shot.id)}
+                  aria-label={`Delete snapshot ${number}`}
+                  title="Delete"
+                >
+                  <Icon name="trash" />
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light" />
     <script>
-      // Apply the saved theme before first paint so the default never flashes.
+      // apply the saved theme before first paint so the default theme doesn't flash on the screen
       try {
         const theme = localStorage.getItem('theme');
         if (theme) document.documentElement.dataset.theme = theme;
