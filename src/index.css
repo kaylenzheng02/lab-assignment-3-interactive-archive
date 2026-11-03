@@ -1,9 +1,9 @@
-/* Design tokens and base styles. Components reference these roles, never raw hex. */
+/* Shared colors and base styles. Components use these names instead of raw colors. */
 :root {
   color-scheme: light;
   --font-sans: 'Google Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* Palette: #a4243b crimson · #d8c99b sand · #d8973c ochre · #bd632f rust · #273e47 slate */
+  /* Default palette: crimson, sand, ochre, rust, and slate. */
   --bg: #d8c99b;
   --surface: #e9e1c2;
   --surface-2: #dfd3ae;
@@ -24,7 +24,7 @@
   --warning: #9a4f22;
   --warning-soft: #f0dcc0;
 
-  /* Chart roles: each chart plots one series, so slots only need to read well on the surface. */
+  /* Chart colors, picked to stand out against the background. */
   --series-1: #a4243b;
   --series-2: #bd632f;
   --series-3: #273e47;
@@ -38,7 +38,7 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Alternate themes, chosen with the theme picker (data-theme on <html>). Sand is the :root default. */
+/* The theme picker sets data-theme on <html>; sand is the default above. */
 [data-theme='plum'] {
   --bg: #bfc3ba;
   --surface: #d9dbd6;

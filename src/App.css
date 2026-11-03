@@ -1,4 +1,4 @@
-/* ---------- Shell ---------- */
+/* shell */
 .skip-link {
   position: absolute;
   top: -100px;
@@ -48,7 +48,7 @@
   gap: 12px;
 }
 
-/* ---------- Theme picker ---------- */
+/* theme picker */
 .theme-picker {
   position: relative;
 }
@@ -169,7 +169,7 @@
   }
 }
 
-/* ---------- Panels ---------- */
+/* panels */
 .panel {
   min-width: 0;
 }
@@ -228,7 +228,7 @@
   color: var(--text);
 }
 
-/* ---------- Buttons & controls ---------- */
+/* buttons and controls */
 .icon {
   flex: none;
 }
@@ -371,9 +371,9 @@
   text-align: right;
 }
 
-/* ---------- Viewport (positioning keeps fog aligned with the camera feed) ---------- */
-/* Gilded frame at its natural proportions; the camera window fills its opening. */
-/* The toolbar shares the frame's width so its controls line up with the camera. */
+/* viewport keep the fog lined up with the camera feed */
+/* keep the frame proportions and let the camera fill its opening */
+/* match the toolbar width to the frame so the controls line up */
 .frame,
 .viewport .toolbar {
   width: min(85%, calc(70vh * 878 / 704));
@@ -384,7 +384,7 @@
   aspect-ratio: 878 / 704;
 }
 
-/* Drawn above the camera so the inner lip overlaps the window's edge. */
+/* layer this over the camera so the frame inner edge overlaps it */
 .frame::after {
   content: '';
   position: absolute;
@@ -394,7 +394,7 @@
 }
 
 .mirror {
-  /* Opening insets measured from frame.png, pulled ~0.5% under the frame lip. */
+  /* these insets follow frame png and tuck just under the frame edge */
   position: absolute;
   inset: 14.3% 11.2% 14.4% 12.2%;
   overflow: hidden;
@@ -407,7 +407,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  /* Both crop identically, so the fog stays aligned with the feed. */
+  /* match the crop so the fog stays lined up with the camera */
   object-fit: cover;
 }
 
@@ -415,7 +415,7 @@
   transform: scaleX(-1);
 }
 
-/* Off or loading: hide the frozen feed and fog so the viewport is a solid fill. */
+/* while the camera is off or loading show a solid fill instead of a frozen frame */
 .mirror:not(.is-live) video,
 .mirror:not(.is-live) canvas {
   visibility: hidden;
@@ -438,7 +438,7 @@
   pointer-events: none;
 }
 
-/* ---------- Side column ---------- */
+/* side column */
 .side {
   display: grid;
   gap: 16px;
@@ -540,8 +540,8 @@
   font-weight: 500;
 }
 
-/* ---------- Archive ---------- */
-/* Snapshot ducks sit over the page at random spots that keep clear of the controls (see placeDucks). */
+/* archive */
+/* snapshot ducks land around the page away from the controls see place ducks */
 .pond {
   position: absolute;
   top: 0;
@@ -568,11 +568,11 @@
   aspect-ratio: 120 / 100;
   object-fit: cover;
   background: var(--surface-2);
-  /* Crop each thumbnail to a rubber duck silhouette. */
+  /* give each thumbnail a rubber duck shape */
   mask: url('./assets/duck.svg') center / contain no-repeat;
 }
 
-/* Number and actions appear only on hover or keyboard focus. */
+/* show the number and buttons on hover or keyboard focus */
 .duck-tools {
   position: absolute;
   bottom: -8px;

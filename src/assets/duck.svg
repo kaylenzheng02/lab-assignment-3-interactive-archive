@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100">
-  <!-- Rubber duck silhouette used as a mask for snapshot thumbnails: body, tail, neck, head, beak. -->
+  <!-- The duck shape used for snapshot thumbnails. -->
   <g fill="#000">
     <ellipse cx="55" cy="68" rx="45" ry="28" />
     <path d="M16 64 Q2 40 12 30 Q22 50 34 50 Z" />

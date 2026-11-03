@@ -10,9 +10,9 @@ const VISION_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/
 const FACE_MODEL = `${MODEL_BASE}/face_landmarker/face_landmarker/float16/1/face_landmarker.task`;
 const HAND_MODEL = `${MODEL_BASE}/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`;
 
-const FOG = '232, 238, 240'; // milky, faintly cool white, like condensation on glass
+const FOG = '232, 238, 240'; // A soft, cool white, like a fogged-up mirror.
 const FRAME_GAP_MS = 65;
-// Wipe diameter in on-screen CSS px.
+// Brush size is measured in screen pixels.
 const BRUSH_MIN = 30;
 const BRUSH_MAX = 200;
 const BRUSH_DEFAULT = 90;
@@ -23,13 +23,13 @@ const PINCH_START = 0.3;
 const PINCH_RELEASE = 0.42;
 
 const FOG_OPACITY = 0.8;
-const FIELD_SCALE = 4; // one fog cell per 4x4 canvas pixels
+const FIELD_SCALE = 4; // Each fog cell covers a 4x4 patch of canvas pixels.
 const BREATH_STRENGTH = 0.06;
 const BREATH_SPREAD = 1.8;
 
 const CHART_WINDOW_MS = 30000;
-const MAX_SAMPLES = 6000; // ~6 minutes of history
-const FLUSH_MS = 250; // how often recorded samples are pushed to the overview stats
+const MAX_SAMPLES = 6000; // Keep about six minutes of history.
+const FLUSH_MS = 250; // Refresh the overview stats every 250 ms.
 
 const fixed2 = (v) => v.toFixed(2);
 const percent = (v) => (v * 100).toFixed(0);
@@ -43,12 +43,12 @@ const STATUS = {
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 const DUCK_W = 140;
-const DUCK_H = 140; // image (140 x 117) plus room for the hover tools below it
+const DUCK_H = 140; // Leaves room for the image and its hover controls.
 const DUCK_GAP = 12;
-// Areas ducks must never cover: header status/theme, the camera, and its controls.
+// Keep ducks away from the status, theme picker, camera, and camera controls.
 const DUCK_KEEP_CLEAR = '.topbar-end, .frame, .viewport .toolbar';
 
-// Deterministic pseudo-random number in [0, 1) for a snapshot id, so ducks stay put across reloads.
+// Give each snapshot a repeatable random value so its duck stays put after reloads.
 function seeded(id, n) {
   const x = Math.sin(id * 12.9898 + n * 78.233) * 43758.5453;
   return x - Math.floor(x);
@@ -57,7 +57,7 @@ function seeded(id, n) {
 const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-// Picks a document-space spot for each duck that avoids the keep-clear areas and, where possible, other ducks.
+// Place each duck away from the controls and, when possible, the other ducks.
 function placeDucks(ids) {
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
@@ -87,7 +87,7 @@ function placeDucks(ids) {
       if (!placed.some((b) => overlaps(box, b))) spot = box;
     }
     spot ??= fallback;
-    if (!spot) continue; // no clear space at all; leave this duck hidden rather than cover controls
+    if (!spot) continue; // No room? Hide this duck instead of covering a control.
     placed.push(spot);
     spots[id] = { left: spot.left, top: spot.top, rotate: `${((seeded(id, 0) - 0.5) * 30).toFixed(1)}deg` };
   }
@@ -109,7 +109,7 @@ function pinchPosition(points, canvas) {
   };
 }
 
-// Smooth random texture in [0, 1]: coarse value noise blended with fine speckle.
+// Mix broad, soft noise with fine speckles for a natural-looking texture.
 function makeGrain(w, h) {
   const step = 12;
   const gw = Math.ceil(w / step) + 2;
@@ -136,7 +136,7 @@ function makeGrain(w, h) {
   return grain;
 }
 
-// Centre of the open mouth and a breath radius scaled to mouth width, in canvas pixels (mirrored like the video).
+// Find the mouth's center and a breath radius based on its width.
 function mouthArea(points, canvas) {
   const top = points[13];
   const bottom = points[14];
@@ -170,9 +170,9 @@ export default function App() {
   const [duckSpots, setDuckSpots] = useState({});
   const [saving, setSaving] = useState(false);
   const [samples, setSamples] = useState([]);
-  const telemetry = useRef([]); // every recorded sample this session, oldest first
-  const coverage = useRef(1); // mean fog density, updated on every render()
-  const urls = useRef(new Map()); // snapshot id -> object URL for display/download
+  const telemetry = useRef([]); // Samples from this session, oldest first.
+  const coverage = useRef(1); // Average fog density, updated on each render.
+  const urls = useRef(new Map()); // Snapshot IDs mapped to their display/download URLs.
 
   function withUrl(record) {
     if (!urls.current.has(record.id)) urls.current.set(record.id, URL.createObjectURL(record.blob));
@@ -195,7 +195,7 @@ export default function App() {
     };
   }, []);
 
-  // Combines the mirrored camera frame and the fog exactly as they appear on screen.
+  // Save the camera and fog together, just as they appear on screen.
   async function takeSnapshot() {
     const feed = video.current;
     const fogLayer = canvas.current;
@@ -237,9 +237,8 @@ export default function App() {
     }
   }
 
-  // Fog lives in a low-resolution float density map (0 = clear, 1 = fully fogged).
-  // Floats avoid the 8-bit rounding that made repeated faint strokes show up as rings,
-  // and the map is drawn scaled up so edges stay soft.
+  // Store fog as a low-res map: 0 is clear, 1 is fully fogged.
+  // Floating-point values keep faint strokes smooth, and scaling the map softens its edges.
   function fogField() {
     const surface = canvas.current;
     const w = Math.ceil(surface.width / FIELD_SCALE);
@@ -276,7 +275,7 @@ export default function App() {
 
     for (let i = 0; i < w * h; i++) {
       total += density[i];
-      // Grain gives the mottled look of real condensation; the random term dithers away banding.
+      // Add texture and a little randomness to keep the fog from looking flat or banded.
       const alpha = density[i] * FOG_OPACITY * (0.86 + 0.28 * grain[i]) * 255 + Math.random() - 0.5;
       const o = i * 4;
       data[o] = r;
@@ -300,7 +299,7 @@ export default function App() {
     render();
   }
 
-  // Applies fn(cellIndex, distance in canvas px) to every field cell within radius of (x, y).
+  // Call fn for each fog cell within radius, passing its index and distance from (x, y).
   function eachCell(x, y, radius, fn) {
     const { w, h } = fogField();
     const x0 = Math.max(0, Math.floor((x - radius) / FIELD_SCALE));
@@ -322,7 +321,7 @@ export default function App() {
 
     eachCell(x, y, radius, (i, d) => {
       const falloff = Math.exp(-(d * d) / (2 * sigma * sigma));
-      // Uneven buildup (via grain) so the patch looks like breath, not a stamped disc.
+      // Vary the buildup so breath looks soft, not like a stamped circle.
       const add = BREATH_STRENGTH * falloff * (0.6 + 0.8 * grain[i]);
       density[i] = Math.min(1, density[i] + add);
     });
@@ -331,7 +330,7 @@ export default function App() {
   function clearAt(x, y) {
     const surface = canvas.current;
     const { density } = fogField();
-    // The canvas is drawn with object-fit: cover, so the larger axis ratio is the on-screen scale.
+    // The canvas uses object-fit: cover, so use the larger scale to match what's on screen.
     const scale = Math.max(surface.clientWidth / surface.width, surface.clientHeight / surface.height);
     const radius = brush.current / 2 / scale;
     const start = previous.current || { x, y };
@@ -341,7 +340,7 @@ export default function App() {
       const px = start.x + ((x - start.x) * s) / steps;
       const py = start.y + ((y - start.y) * s) / steps;
       eachCell(px, py, radius, (i, d) => {
-        // Fully clear inside 65% of the radius, smooth fade to the edge.
+        // Clear the center fully, then fade smoothly toward the edge.
         const t = Math.min(1, Math.max(0, (radius - d) / (radius * 0.35)));
         const wipe = t * t * (3 - 2 * t);
         density[i] *= 1 - wipe;
@@ -448,7 +447,7 @@ export default function App() {
       const feed = video.current;
       canvas.current.width = feed.videoWidth;
       canvas.current.height = feed.videoHeight;
-      // Resume the previous drawing after a stop; refog only on first start or if the frame size changed.
+      // Keep the old fog after a stop; reset it only if the video size changed.
       const previousField = fieldRef.current;
       if (fogField() === previousField) render();
       else fog();
@@ -543,9 +542,17 @@ export default function App() {
   const status = STATUS[mode];
   const last = samples.at(-1);
   const rate = last ? samples.filter((s) => s.t > last.t - 1000).length : 0;
-  const fogLevel = last ? last.coverage : 1; // the mirror starts fully fogged
+  const fogLevel = last ? last.coverage : 1; // Start with a fully fogged mirror.
   const faceOn = mode === 'live' && last?.face;
   const handOn = mode === 'live' && last?.hand;
+  let faceLabel = 'Offline';
+  let handLabel = 'Offline';
+  if (mode === 'live') {
+    faceLabel = faceOn ? 'Tracked' : 'Not found';
+    handLabel = handOn ? 'Tracked' : 'Not found';
+    if (faceOn && last.mouthOpen) faceLabel = 'Mouth open';
+    if (handOn && last.pinched) handLabel = 'Pinching';
+  }
 
   return (
     <>
@@ -675,14 +682,14 @@ export default function App() {
               <dt>Face</dt>
               <dd className={`flag ${faceOn ? 'flag-on' : ''}`}>
                 <Icon name={faceOn ? 'check' : 'minus'} />
-                {mode !== 'live' ? 'Offline' : faceOn ? (last.mouthOpen ? 'Mouth open' : 'Tracked') : 'Not found'}
+                {faceLabel}
               </dd>
             </div>
             <div className="kpi">
               <dt>Hand</dt>
               <dd className={`flag ${handOn ? 'flag-on' : ''}`}>
                 <Icon name={handOn ? 'check' : 'minus'} />
-                {mode !== 'live' ? 'Offline' : handOn ? (last.pinched ? 'Pinching' : 'Tracked') : 'Not found'}
+                {handLabel}
               </dd>
             </div>
           </dl>

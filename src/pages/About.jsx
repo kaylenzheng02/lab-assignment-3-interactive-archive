@@ -1,4 +1,3 @@
-// About.jsx
 function About() {
   return (
     <div>

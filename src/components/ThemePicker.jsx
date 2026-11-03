@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 
-// Swatches mirror the palettes defined as [data-theme] blocks in index.css.
+// Keep these colors in sync with the theme palettes in index.css.
 const THEMES = [
   { id: 'sand', name: 'Sand', colors: ['#a4243b', '#d8c99b', '#d8973c', '#bd632f', '#273e47'] },
   { id: 'plum', name: 'Plum', colors: ['#bfc3ba', '#a9aca9', '#60495a', '#3f3244', '#2f2235'] },
@@ -38,7 +38,12 @@ export default function ThemePicker() {
   useEffect(() => {
     if (!open) return undefined;
     const close = (event) => {
-      if (event.type === 'keydown' ? event.key === 'Escape' : !root.current.contains(event.target)) setOpen(false);
+      if (event.type === 'keydown') {
+        if (event.key === 'Escape') setOpen(false);
+        return;
+      }
+
+      if (!root.current.contains(event.target)) setOpen(false);
     };
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', close);

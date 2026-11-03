@@ -1,4 +1,4 @@
-// Small inline stroke icon set (Lucide-style geometry) so the UI needs no icon dependency.
+// A small set of inline icons, so the UI doesn't need an icon package.
 const PATHS = {
   play: <path d="M7 4.5v15l12-7.5z" />,
   stop: <rect x="6" y="6" width="12" height="12" rx="1.5" />,

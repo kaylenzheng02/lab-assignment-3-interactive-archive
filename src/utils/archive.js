@@ -1,4 +1,4 @@
-// Snapshot archive stored in the browser indexeddb
+// Save snapshots in the browser's IndexedDB.
 const DB_NAME = 'digital-mirror';
 const STORE = 'snapshots';
 
@@ -29,13 +29,13 @@ async function run(mode, action) {
   });
 }
 
-// newest first!
+// Put the newest snapshots first.
 export async function listSnapshots() {
   const all = await run('readonly', (store) => store.getAll());
   return all.reverse();
 }
 
-// Returns the saved record, including its new id.
+// Save a snapshot and return its new ID with the record.
 export async function addSnapshot(blob) {
   const record = { blob, createdAt: Date.now() };
   const id = await run('readwrite', (store) => store.add(record));
